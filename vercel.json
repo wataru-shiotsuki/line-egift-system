@@ -1,0 +1,19 @@
+{
+  "rewrites": [
+    { "source": "/webhook",        "destination": "/api/webhook" },
+    { "source": "/stripe-webhook", "destination": "/api/stripe-webhook" },
+    { "source": "/(.*)",           "destination": "/api/app" }
+  ],
+  "headers": [
+    {
+      "source": "/liff/(.*)",
+      "headers": [
+        { "key": "Cache-Control", "value": "no-store, must-revalidate" }
+      ]
+    }
+  ],
+"functions": {
+    "api/webhook.js": { "maxDuration": 60 },
+    "api/stripe-webhook.js": { "maxDuration": 60 }
+  }
+}

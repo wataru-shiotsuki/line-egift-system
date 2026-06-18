@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>えらべる — リダイレクト中...</title>
+<style>
+  body { margin: 0; display: flex; align-items: center; justify-content: center;
+         min-height: 100vh; font-family: sans-serif; background: #FFF8F2; color: #6B4C3B; }
+  .msg { text-align: center; }
+  .icon { font-size: 48px; margin-bottom: 16px; animation: bounce 1s ease-in-out infinite; }
+  @keyframes bounce { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-8px)} }
+  p { font-size: 14px; color: #8A7068; }
+</style>
+</head>
+<body>
+<div class="msg">
+  <div class="icon">🎁</div>
+  <p>ギフト選択ページを開いています...</p>
+</div>
+<script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+<script>
+(function () {
+  var LIFF_ID = '2009924306-AGKLqoyb';
+  var GIFT_PATH = '/liff/index.html';
+  liff.init({ liffId: LIFF_ID })
+    .then(function () {
+      return liff.getProfile();
+    })
+    .then(function (profile) {
+      location.href = GIFT_PATH + '?lineUserId=' + encodeURIComponent(profile.userId);
+    })
+    .catch(function () {
+      location.href = GIFT_PATH;
+    });
+})();
+</script>
+</body>
+</html>

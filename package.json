@@ -1,0 +1,23 @@
+{
+  "name": "line-gift-bot",
+  "version": "2.0.0",
+  "description": "LINE gift bot on Vercel + Supabase",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js",
+    "vercel-dev": "vercel dev"
+  },
+  "dependencies": {
+    "@google/generative-ai": "^0.24.1",
+    "@line/bot-sdk": "^9.4.0",
+    "@supabase/supabase-js": "^2",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "pg": "^8.20.0",
+    "qrcode": "^1.5.4",
+    "resend": "^4.8.0",
+    "stripe": "^16.2.0"
+  }
+}

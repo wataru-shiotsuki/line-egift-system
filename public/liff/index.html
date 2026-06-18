@@ -1,0 +1,568 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ギフト選択</title>
+  <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+  <script src="https://js.stripe.com/v3/"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: #f0f2f5;
+      max-width: 480px;
+      margin: 0 auto;
+      padding: 16px 12px 32px;
+    }
+    .header { margin-bottom: 16px; }
+    .header h1 { color: #111; font-size: 20px; font-weight: bold; }
+    .user-info { color: #aaa; font-size: 11px; margin-top: 2px; }
+    .warning { background: #fff3cd; border: 1px solid #ffc107; border-radius: 8px; padding: 12px 16px; color: #856404; font-size: 13px; margin-bottom: 16px; }
+    .chat-section { background: #fff; border-radius: 14px; padding: 14px; margin-bottom: 16px; box-shadow: 0 1px 6px rgba(0,0,0,0.08); }
+    .chat-title { font-size: 14px; font-weight: bold; color: #00a000; margin-bottom: 8px; display: flex; align-items: center; gap: 4px; }
+    .chat-messages { max-height: 320px; overflow-y: auto; margin-bottom: 8px; }
+    .chat-msg-row { display: flex; margin-bottom: 8px; }
+    .chat-msg-row.user { justify-content: flex-end; }
+    .chat-bubble { padding: 8px 12px; border-radius: 12px; font-size: 13px; line-height: 1.6; white-space: pre-wrap; max-width: 85%; }
+    .chat-bubble.ai { background: #f0f2f5; color: #333; }
+    .chat-bubble.user { background: #00C300; color: #fff; }
+    .chat-recs { margin: 4px 0 8px; }
+    .chat-rec-card { background: #f8fff8; border: 1.5px solid #00C300; border-radius: 10px; padding: 10px; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+    .chat-rec-info { flex: 1; }
+    .chat-rec-name { font-size: 12px; font-weight: bold; color: #222; }
+    .chat-rec-price { font-size: 12px; color: #00C300; font-weight: bold; }
+    .chat-rec-btn { background: #00C300; color: #fff; border: none; border-radius: 7px; padding: 6px 10px; font-size: 11px; font-weight: bold; cursor: pointer; white-space: nowrap; }
+    .chat-rec-btn.added { background: #fff; color: #00C300; border: 1.5px solid #00C300; }
+    .chat-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+    .chat-chip { padding: 5px 10px; border: 1.5px solid #00C300; border-radius: 20px; background: #fff; color: #00a000; font-size: 12px; cursor: pointer; }
+    .chat-input-row { display: flex; gap: 6px; }
+    .chat-input { flex: 1; padding: 10px 12px; border: 1.5px solid #ddd; border-radius: 20px; font-size: 13px; outline: none; font-family: inherit; }
+    .chat-send-btn { background: #00C300; color: #fff; border: none; border-radius: 20px; padding: 0 16px; font-size: 13px; font-weight: bold; cursor: pointer; }
+    .chat-send-btn:disabled { background: #aaa; cursor: not-allowed; }
+    .rec-section { background: linear-gradient(135deg, #e8f5e9, #f1f8e9); border: 1.5px solid #00C300; border-radius: 14px; padding: 14px 12px 12px; margin-bottom: 20px; }
+    .rec-section-title { font-size: 13px; font-weight: bold; color: #00a000; margin-bottom: 10px; display: flex; align-items: center; gap: 4px; }
+    .filter-bar { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 4px; margin-bottom: 8px; scrollbar-width: none; }
+    .filter-bar::-webkit-scrollbar { display: none; }
+    .filter-btn { flex-shrink: 0; padding: 5px 12px; border: 1.5px solid #ddd; border-radius: 20px; background: #fff; font-size: 12px; color: #555; cursor: pointer; white-space: nowrap; transition: all 0.15s; }
+    .filter-btn.active { background: #00C300; border-color: #00C300; color: #fff; font-weight: bold; }
+    .sort-bar { display: flex; gap: 6px; margin-bottom: 14px; }
+    .sort-btn { padding: 4px 10px; border: 1.5px solid #ddd; border-radius: 20px; background: #fff; font-size: 11px; color: #888; cursor: pointer; transition: all 0.15s; }
+    .sort-btn.active { background: #f0f0f0; border-color: #aaa; color: #333; font-weight: bold; }
+    .category-section { margin-bottom: 20px; }
+    .category-title { font-size: 13px; font-weight: bold; color: #555; margin-bottom: 10px; padding: 4px 10px; background: #fff; border-radius: 20px; display: inline-block; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
+    .product-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .product-card { background: #fff; border-radius: 12px; padding: 12px; box-shadow: 0 1px 4px rgba(0,0,0,0.08); display: flex; flex-direction: column; cursor: pointer; transition: transform 0.15s, box-shadow 0.15s; border: 2px solid transparent; }
+    .product-card:active { transform: scale(0.97); }
+    .product-card.recommended { border-color: #00C300; }
+    .product-card.selected { border-color: #00C300; background: #f0fff8; }
+    .product-card.disabled { opacity: 0.4; }
+    .rec-badge { font-size: 10px; font-weight: bold; color: #00a000; margin-bottom: 5px; }
+    .card-name { font-size: 12px; font-weight: bold; color: #222; line-height: 1.4; margin-bottom: 4px; flex: 1; }
+    .card-desc { font-size: 12px; color: #999; line-height: 1.4; margin-bottom: 8px; }
+    .card-price { font-size: 15px; font-weight: bold; color: #00C300; margin-bottom: 8px; }
+    .select-btn { background: #00C300; color: #fff; border: none; border-radius: 7px; padding: 8px 0; width: 100%; font-size: 12px; font-weight: bold; cursor: pointer; }
+    .select-btn.selected-btn { background: #fff; color: #00C300; border: 1.5px solid #00C300; }
+    .select-btn:disabled { background: #eee; color: #bbb; cursor: not-allowed; }
+    #selection-bar { display: none; position: fixed; left: 0; right: 0; bottom: 0; max-width: 480px; margin: 0 auto; background: #fff; box-shadow: 0 -2px 10px rgba(0,0,0,0.1); padding: 12px 16px; z-index: 10; border-radius: 14px 14px 0 0; }
+    #selection-summary { font-size: 13px; color: #444; line-height: 1.6; margin-bottom: 8px; }
+    #selection-next-btn { background: #00C300; color: #fff; border: none; border-radius: 8px; padding: 14px 0; width: 100%; font-size: 16px; font-weight: bold; cursor: pointer; }
+    #payment-section { display: none; background: #fff; border-radius: 14px; padding: 24px; margin-bottom: 16px; box-shadow: 0 1px 6px rgba(0,0,0,0.1); }
+    #payment-section h2 { font-size: 18px; color: #222; margin-bottom: 4px; }
+    #selected-product-name { color: #666; font-size: 14px; margin-bottom: 20px; }
+    #payment-element { margin-bottom: 20px; }
+    #pay-btn { background: #00C300; color: #fff; border: none; border-radius: 8px; padding: 14px 0; width: 100%; font-size: 16px; font-weight: bold; cursor: pointer; }
+    #pay-btn:disabled { background: #aaa; cursor: not-allowed; }
+    #back-btn { background: none; color: #888; border: none; font-size: 13px; cursor: pointer; margin-top: 12px; text-decoration: underline; display: block; text-align: center; }
+    #payment-message { color: #e53935; font-size: 13px; margin-top: 12px; text-align: center; }
+    #complete-section { display: none; background: #fff; border-radius: 14px; padding: 32px 24px; text-align: center; box-shadow: 0 1px 6px rgba(0,0,0,0.1); }
+    #complete-section .icon { font-size: 56px; margin-bottom: 16px; }
+    #complete-section h2 { color: #00C300; font-size: 20px; margin-bottom: 12px; }
+    #complete-section p { color: #555; font-size: 15px; line-height: 1.7; }
+    #share-btn { margin-top: 24px; background: #00C300; color: #fff; border: none; border-radius: 8px; padding: 14px 0; width: 100%; font-size: 16px; font-weight: bold; cursor: pointer; }
+    #share-btn:disabled { background: #aaa; cursor: not-allowed; }
+    .spinner { display:inline-block; width:18px; height:18px; border:3px solid #ddd; border-top-color:#00C300; border-radius:50%; animation:spin 0.8s linear infinite; vertical-align:middle; margin-right:6px; }
+    @keyframes spin { to { transform:rotate(360deg); } }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>ギフトを選択</h1>
+    <p class="user-info" id="user-info"></p>
+  </div>
+  <div id="warning-box" class="warning" style="display:none;">LINEアプリ内のリンクからアクセスしてください。</div>
+  <div class="chat-section" id="chat-section" style="display:none;">
+    <div class="chat-title">🎁 AIにギフトを相談する</div>
+    <div class="chat-messages" id="chat-messages"></div>
+    <div class="chat-chips" id="chat-chips"></div>
+    <div class="chat-input-row">
+      <input type="text" class="chat-input" id="chat-input" placeholder="例：友達の誕生日に贈りたい、予算1000円くらい"
+        onkeydown="if(event.key==='Enter'){sendChatMessage(document.getElementById('chat-input').value.trim())}">
+      <button class="chat-send-btn" id="chat-send-btn" onclick="sendChatMessage(document.getElementById('chat-input').value.trim())">送信</button>
+    </div>
+  </div>
+  <div class="filter-bar" id="filter-bar"></div>
+  <div class="sort-bar" id="sort-bar" style="display:none;"></div>
+  <div id="loading-indicator" style="text-align:center; padding:48px 0; color:#aaa;">
+    <div style="font-size:36px; margin-bottom:10px;">🎁</div>
+    <div style="font-size:14px;">商品を読み込み中...</div>
+  </div>
+  <div id="product-list"></div>
+  <div id="selection-bar">
+    <div id="selection-summary"></div>
+    <button id="selection-next-btn" onclick="proceedFromSelection()">次へ（メッセージ入力）</button>
+  </div>
+  <div id="message-section" style="display:none; background:#fff; border-radius:14px; padding:24px; margin-bottom:16px; box-shadow:0 1px 6px rgba(0,0,0,0.1);">
+    <h2 style="font-size:18px; color:#222; margin-bottom:4px;">メッセージを添える</h2>
+    <p id="message-product-name" style="color:#666; font-size:14px; margin-bottom:20px;"></p>
+    <label style="font-size:13px; color:#666; display:block; margin-bottom:6px;">💌 一言メッセージ（任意）</label>
+    <textarea id="gift-message" placeholder="「誕生日おめでとう！」など一言添えられます"
+      style="width:100%; padding:10px 12px; border:1.5px solid #ddd; border-radius:8px; font-size:14px; resize:none; height:80px; outline:none; font-family:inherit;"></textarea>
+    <button onclick="proceedToPayment()" id="proceed-btn"
+      style="margin-top:16px; background:#00C300; color:#fff; border:none; border-radius:8px; padding:14px 0; width:100%; font-size:16px; font-weight:bold; cursor:pointer;">
+      支払いへ進む
+    </button>
+    <button onclick="goBackToProducts()"
+      style="background:none; color:#888; border:none; font-size:13px; cursor:pointer; margin-top:12px; text-decoration:underline; display:block; width:100%; text-align:center;">
+      ← 商品選択に戻る
+    </button>
+  </div>
+  <div id="confirm-section" style="display:none; background:#fff; border-radius:14px; padding:24px; margin-bottom:16px; box-shadow:0 1px 6px rgba(0,0,0,0.1);">
+    <h2 style="font-size:18px; color:#222; margin-bottom:16px;">内容確認</h2>
+    <div style="background:#f8f9fa; border-radius:10px; padding:16px; margin-bottom:16px;">
+      <div style="margin-bottom:12px;">
+        <div style="font-size:11px; color:#999; margin-bottom:2px;">商品</div>
+        <div id="confirm-product-name" style="font-size:15px; font-weight:bold; color:#222;"></div>
+      </div>
+      <div style="margin-bottom:12px;">
+        <div style="font-size:11px; color:#999; margin-bottom:2px;">金額</div>
+        <div id="confirm-amount" style="font-size:18px; font-weight:bold; color:#00C300;"></div>
+      </div>
+      <div id="confirm-message-row" style="display:none;">
+        <div style="font-size:11px; color:#999; margin-bottom:2px;">💌 メッセージ</div>
+        <div id="confirm-message-text" style="font-size:14px; color:#444; white-space:pre-wrap;"></div>
+      </div>
+    </div>
+    <button onclick="confirmAndPay()" id="confirm-btn"
+      style="background:#00C300; color:#fff; border:none; border-radius:8px; padding:14px 0; width:100%; font-size:16px; font-weight:bold; cursor:pointer;">
+      この内容で支払いへ進む
+    </button>
+    <button onclick="goBackFromConfirm()"
+      style="background:none; color:#888; border:none; font-size:13px; cursor:pointer; margin-top:12px; text-decoration:underline; display:block; width:100%; text-align:center;">
+      ← メッセージ入力に戻る
+    </button>
+  </div>
+  <div id="payment-section">
+    <h2>お支払い</h2>
+    <p id="selected-product-name"></p>
+    <div id="payment-element"></div>
+    <button id="pay-btn" onclick="handlePay()">支払う</button>
+    <button id="back-btn" onclick="goBackToMessage()">← 前に戻る</button>
+    <div id="payment-message"></div>
+  </div>
+  <div id="complete-section">
+    <div class="icon">✅</div>
+    <h2>お支払いが完了しました！</h2>
+    <p id="complete-message">ギフトURLを準備しています...</p>
+    <button id="share-btn" disabled>準備中...</button>
+    <button id="copy-btn" onclick="copyGiftUrl()"
+      style="display:none; margin-top:10px; background:#fff; color:#00C300; border:2px solid #00C300; border-radius:8px; padding:12px 0; width:100%; font-size:14px; font-weight:bold; cursor:pointer;">
+      🔗 URLをコピー
+    </button>
+  </div>
+  <script>
+    let lineUserId = '';
+    let senderDisplayName = '';
+    let stripe, elements;
+    let selectedItems = []; // [{id, name, amount}]
+    let lockedPrice = null;
+    let currentGiftId = null;
+    let savedPaymentIntent = null;
+    let recIds = [];
+    let sortOrder = null; // null=デフォルト 'asc'=安い順 'desc'=高い順
+    let allProducts = [];
+    const PRICE_FILTERS = [
+      { label: 'すべて', fn: () => true },
+      { label: '〜500円', fn: p => p.amount <= 500 },
+      { label: '〜1,000円', fn: p => p.amount <= 1000 },
+      { label: '〜2,000円', fn: p => p.amount <= 2000 },
+      { label: '2,000円〜', fn: p => p.amount > 2000 },
+    ];
+    let activeFilter = 0;
+    let chatMessages = [];
+    let chatLoading = false;
+    const CHAT_INIT_CHIPS = ['🎂 誕生日に贈りたい', '💐 お礼がしたい', '🏠 引越し祝い', '¥1,000くらいで'];
+    const CHAT_FOLLOW_CHIPS = ['他の候補も見たい', '予算を変えたい'];
+    function renderProductList() {
+      let products = allProducts.filter(PRICE_FILTERS[activeFilter].fn);
+      const recommended = products.filter(p => recIds.includes(p.id));
+      const rest = products.filter(p => !recIds.includes(p.id));
+      let html = '';
+      if (sortOrder) {
+        // 並び替えモード：カテゴリを無視してフラットに表示
+        const sorted = [...products].sort((a, b) => sortOrder === 'asc' ? a.amount - b.amount : b.amount - a.amount);
+        html += `<div class="category-section"><div class="product-grid">${sorted.map(p => renderCard(p, recIds.includes(p.id))).join('')}</div></div>`;
+      } else {
+        // デフォルト：おすすめ→カテゴリ別
+        if (recommended.length > 0) {
+          html += `<div class="rec-section">
+            <div class="rec-section-title">✨ AIのおすすめ</div>
+            <div class="product-grid">${recommended.map(p => renderCard(p, true)).join('')}</div>
+          </div>`;
+        }
+        const categories = {};
+        rest.forEach(p => {
+          if (!categories[p.category]) categories[p.category] = [];
+          categories[p.category].push(p);
+        });
+        for (const [cat, items] of Object.entries(categories)) {
+          html += `<div class="category-section">
+            <div class="category-title">${cat}</div>
+            <div class="product-grid">${items.map(p => renderCard(p, false)).join('')}</div>
+          </div>`;
+        }
+      }
+      if (!html) html = '<p style="text-align:center;color:#aaa;padding:32px 0;">該当する商品がありません</p>';
+      document.getElementById('product-list').innerHTML = html;
+    }
+    function renderSortBar() {
+      document.getElementById('sort-bar').innerHTML =
+        `<span style="font-size:11px;color:#aaa;line-height:1.8;margin-right:2px;">並び替え：</span>` +
+        `<button class="sort-btn ${sortOrder === 'asc' ? 'active' : ''}" onclick="setSort('asc')">昇順 ↑</button>` +
+        `<button class="sort-btn ${sortOrder === 'desc' ? 'active' : ''}" onclick="setSort('desc')">降順 ↓</button>`;
+    }
+    function setSort(order) {
+      sortOrder = sortOrder === order ? null : order;
+      renderSortBar();
+      renderProductList();
+    }
+    function renderFilterBar() {
+      document.getElementById('filter-bar').innerHTML = PRICE_FILTERS.map((f, i) =>
+        `<button class="filter-btn ${i === activeFilter ? 'active' : ''}" onclick="setFilter(${i})">${f.label}</button>`
+      ).join('');
+    }
+    function setFilter(i) { activeFilter = i; renderFilterBar(); renderProductList(); }
+    function initChat() {
+      document.getElementById('chat-section').style.display = 'block';
+      chatMessages = [{ role: 'assistant', content: 'こんにちは！🎁\nどんなシーンで贈りますか？予算もあれば教えてください。\nお話に合わせておすすめの商品をご提案します。', recs: [] }];
+      renderChatChips(CHAT_INIT_CHIPS);
+      renderChat();
+    }
+    function renderChatChips(chips) {
+      document.getElementById('chat-chips').innerHTML = chips.map(c =>
+        `<button class="chat-chip" onclick="sendChatMessage('${c.replace(/'/g, "\\'")}')">${c}</button>`
+      ).join('');
+    }
+    function renderChat() {
+      const el = document.getElementById('chat-messages');
+      let html = '';
+      chatMessages.forEach(m => {
+        html += `<div class="chat-msg-row ${m.role === 'user' ? 'user' : ''}">
+          <div class="chat-bubble ${m.role === 'user' ? 'user' : 'ai'}">${escapeHtml(m.content)}</div>
+        </div>`;
+        if (m.recs && m.recs.length > 0) {
+          html += `<div class="chat-recs">` + m.recs.map(p => {
+            const isSelected = selectedItems.some(it => it.id === p.id);
+            const isDisabled = lockedPrice !== null && p.amount !== lockedPrice && !isSelected;
+            return `<div class="chat-rec-card">
+              <div class="chat-rec-info">
+                <div class="chat-rec-name">${p.name}</div>
+                <div class="chat-rec-price">¥${p.amount.toLocaleString()}</div>
+              </div>
+              <button class="chat-rec-btn ${isSelected ? 'added' : ''}" ${isDisabled ? 'disabled' : ''} onclick="toggleItem('${p.id}'); renderChat();">
+                ${isSelected ? '✓ 選択中' : isDisabled ? '価格違い' : '選ぶ'}
+              </button>
+            </div>`;
+          }).join('') + `</div>`;
+        }
+      });
+      if (chatLoading) {
+        html += `<div class="chat-msg-row"><div class="chat-bubble ai"><span class="spinner"></span>考え中...</div></div>`;
+      }
+      el.innerHTML = html;
+      el.scrollTop = el.scrollHeight;
+    }
+    function escapeHtml(s) {
+      return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    }
+    async function sendChatMessage(text) {
+      if (!text || chatLoading) return;
+      document.getElementById('chat-input').value = '';
+      renderChatChips([]);
+      chatMessages.push({ role: 'user', content: text, recs: [] });
+      chatLoading = true;
+      document.getElementById('chat-send-btn').disabled = true;
+      renderChat();
+      try {
+        const res = await fetch('/ai-chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ messages: chatMessages.map(m => ({ role: m.role, content: m.content })), lineUserId }),
+        });
+        const data = await res.json();
+        const recs = (data.recommendations || []).map(id => allProducts.find(p => p.id === id)).filter(Boolean);
+        chatMessages.push({ role: 'assistant', content: data.message || 'すみません、もう一度お試しください。', recs });
+        renderChatChips(recs.length > 0 ? CHAT_FOLLOW_CHIPS : ['もっと詳しく伝える']);
+      } catch {
+        chatMessages.push({ role: 'assistant', content: '通信エラーが発生しました。もう一度お試しください。', recs: [] });
+      }
+      chatLoading = false;
+      document.getElementById('chat-send-btn').disabled = false;
+      renderChat();
+    }
+    fetch('/config').then(r => r.json()).then(({ publishableKey }) => { stripe = Stripe(publishableKey); });
+    liff.init({ liffId: '2009924306-AGKLqoyb' })
+      .then(async () => {
+        if (!liff.isLoggedIn()) { liff.login(); return; }
+        let needsRelogin = false;
+        try {
+          const permission = await liff.permission.query('chat_message.write');
+          if (permission.state !== 'granted') needsRelogin = true;
+        } catch { needsRelogin = true; }
+        if (needsRelogin && !sessionStorage.getItem('relogin_done')) {
+          sessionStorage.setItem('relogin_done', '1');
+          liff.logout(); liff.login(); return;
+        }
+        sessionStorage.removeItem('relogin_done');
+        const profile = await liff.getProfile();
+        lineUserId = profile.userId;
+        senderDisplayName = profile.displayName || '';
+        document.getElementById('user-info').textContent = '';
+        fetch('/funnel-event', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ userId: lineUserId, eventType: 'liff_open' }) }).catch(() => {});
+        const urlParams = new URLSearchParams(window.location.search);
+        recIds = (urlParams.get('rec') || '').split(',').filter(Boolean);
+        if (recIds.length > 0) {
+          recIds.forEach(pid => {
+            fetch('/funnel-event', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ userId: lineUserId, eventType: 'rec_view', productId: pid }) }).catch(() => {});
+          });
+        }
+        const products = await fetch('/products').then(r => {
+          if (!r.ok) throw new Error(r.status);
+          return r.json();
+        }).catch(() => {
+          document.getElementById('loading-indicator').innerHTML =
+            '<div style="font-size:36px;margin-bottom:10px;">⚠️</div>' +
+            '<div style="font-size:14px;color:#e53935;">商品の読み込みに失敗しました</div>' +
+            '<button onclick="location.reload()" style="margin-top:16px;background:#00C300;color:#fff;border:none;border-radius:8px;padding:10px 24px;font-size:14px;font-weight:bold;cursor:pointer;">再試行</button>';
+          return null;
+        });
+        if (!products) return;
+        allProducts = products;
+        document.getElementById('loading-indicator').style.display = 'none';
+        document.getElementById('sort-bar').style.display = 'flex';
+        renderFilterBar();
+        renderSortBar();
+        renderProductList();
+        initChat();
+        const productParam = urlParams.get('product');
+        if (productParam) {
+          const target = allProducts.find(p => p.id === productParam);
+          if (target) toggleItem(target.id);
+        }
+      })
+      .catch(() => { document.getElementById('warning-box').style.display = 'block'; });
+    function renderCard(p, isRec) {
+      const isSelected = selectedItems.some(it => it.id === p.id);
+      const isDisabled = lockedPrice !== null && p.amount !== lockedPrice && !isSelected;
+      let btnLabel = '選択する';
+      if (isSelected) btnLabel = '✓ 選択中';
+      else if (isDisabled) btnLabel = '価格が異なります';
+      return `<div class="product-card ${isRec ? 'recommended' : ''} ${isSelected ? 'selected' : ''} ${isDisabled ? 'disabled' : ''}">
+        ${isRec ? '<div class="rec-badge">✨ おすすめ</div>' : ''}
+        <div class="card-name">${p.name}</div>
+        <div class="card-desc">${p.description}</div>
+        <div class="card-price">¥${p.amount.toLocaleString()}</div>
+        <button class="select-btn ${isSelected ? 'selected-btn' : ''}" ${isDisabled ? 'disabled' : ''} onclick="toggleItem('${p.id}')">${btnLabel}</button>
+      </div>`;
+    }
+    function toggleItem(productId) {
+      if (!lineUserId) { alert('LINEアプリ内のリンクからアクセスしてください。'); return; }
+      const product = allProducts.find(p => p.id === productId);
+      if (!product) return;
+      const idx = selectedItems.findIndex(it => it.id === productId);
+      if (idx > -1) {
+        selectedItems.splice(idx, 1);
+        if (selectedItems.length === 0) lockedPrice = null;
+      } else {
+        if (lockedPrice !== null && product.amount !== lockedPrice) return;
+        if (selectedItems.length >= 6) { alert('選択できるのは最大6個までです。'); return; }
+        selectedItems.push({ id: product.id, name: product.name, amount: product.amount });
+        lockedPrice = product.amount;
+        fetch('/funnel-event', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ userId: lineUserId, eventType: 'product_select', productId }) }).catch(() => {});
+      }
+      savedPaymentIntent = null;
+      renderProductList();
+      renderSelectionBar();
+    }
+    function renderSelectionBar() {
+      const bar = document.getElementById('selection-bar');
+      const summary = document.getElementById('selection-summary');
+      if (selectedItems.length === 0) {
+        bar.style.display = 'none';
+        document.body.style.paddingBottom = '32px';
+        return;
+      }
+      const names = selectedItems.map(it => it.name).join('、');
+      const note = selectedItems.length > 1 ? '（受取人がこの中から1つ選びます）' : '';
+      summary.innerHTML = `📦 選択中 ${selectedItems.length}件・各¥${lockedPrice.toLocaleString()} ${note}<br>${names}`;
+      bar.style.display = 'block';
+      document.body.style.paddingBottom = '120px';
+    }
+    function proceedFromSelection() {
+      document.getElementById('message-product-name').textContent = selectedItems.map(it => it.name).join('、');
+      document.getElementById('gift-message').value = '';
+      document.getElementById('product-list').style.display = 'none';
+      document.getElementById('filter-bar').style.display = 'none';
+      document.getElementById('selection-bar').style.display = 'none';
+      document.getElementById('message-section').style.display = 'block';
+    }
+    function proceedToPayment() {
+      const giftMessage = document.getElementById('gift-message').value.trim();
+      document.getElementById('confirm-product-name').textContent = selectedItems.map(it => it.name).join('、');
+      document.getElementById('selected-product-name').textContent = selectedItems.map(it => it.name).join('、');
+      const note = selectedItems.length > 1 ? `（${selectedItems.length}択・受取人が1つ選びます）` : '';
+      document.getElementById('confirm-amount').textContent = '¥' + lockedPrice.toLocaleString() + note;
+      const msgRow = document.getElementById('confirm-message-row');
+      document.getElementById('confirm-message-text').textContent = giftMessage;
+      msgRow.style.display = giftMessage ? 'block' : 'none';
+      document.getElementById('message-section').style.display = 'none';
+      document.getElementById('confirm-section').style.display = 'block';
+    }
+    function goBackFromConfirm() {
+      savedPaymentIntent = null;
+      document.getElementById('confirm-section').style.display = 'none';
+      document.getElementById('message-section').style.display = 'block';
+    }
+    async function confirmAndPay() {
+      const giftMessage = document.getElementById('gift-message').value.trim();
+      const btn = document.getElementById('confirm-btn');
+      const itemsKey = selectedItems.map(it => it.id).join(',');
+      let clientSecret;
+      if (savedPaymentIntent && savedPaymentIntent.itemsKey === itemsKey && savedPaymentIntent.giftMessage === giftMessage) {
+        clientSecret = savedPaymentIntent.clientSecret;
+        currentGiftId = savedPaymentIntent.giftId;
+      } else {
+        btn.disabled = true;
+        btn.textContent = '読み込み中...';
+        try {
+          const res = await fetch('/create-payment-intent', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              giftType: 'giftalk',
+              items: selectedItems.map(it => ({ id: it.id, name: it.name, price: it.amount })),
+              senderName: senderDisplayName,
+              occasionText: giftMessage,
+              lineUserId,
+            }),
+          });
+          const data = await res.json();
+          if (data.error) {
+            showConfirmError('決済の準備に失敗しました。時間をおいて再度お試しください。');
+            return;
+          }
+          clientSecret = data.clientSecret;
+          currentGiftId = data.giftId;
+          savedPaymentIntent = { clientSecret, giftMessage, itemsKey, giftId: data.giftId };
+        } catch {
+          showConfirmError('通信エラーが発生しました。電波の良い場所で再度お試しください。');
+          return;
+        } finally {
+          btn.disabled = false;
+          btn.textContent = 'この内容で支払いへ進む';
+        }
+      }
+      elements = stripe.elements({ clientSecret, locale: 'ja' });
+      const paymentElement = elements.create('payment');
+      document.getElementById('payment-element').innerHTML = '';
+      paymentElement.mount('#payment-element');
+      document.getElementById('confirm-section').style.display = 'none';
+      document.getElementById('payment-section').style.display = 'block';
+    }
+    function showConfirmError(msg) {
+      let el = document.getElementById('confirm-error');
+      if (!el) {
+        el = document.createElement('div');
+        el.id = 'confirm-error';
+        el.style.cssText = 'color:#e53935;font-size:13px;text-align:center;margin-top:8px;padding:8px;background:#fff3f3;border-radius:8px;';
+        document.getElementById('confirm-btn').insertAdjacentElement('afterend', el);
+      }
+      el.textContent = msg;
+    }
+    function goBackToProducts() {
+      document.getElementById('message-section').style.display = 'none';
+      document.getElementById('product-list').style.display = 'block';
+      document.getElementById('filter-bar').style.display = 'flex';
+      renderSelectionBar();
+    }
+    function goBackToMessage() {
+      if (!confirm('支払い画面を離れますか？\nカード情報の入力はリセットされます。')) return;
+      document.getElementById('payment-section').style.display = 'none';
+      document.getElementById('payment-element').innerHTML = '';
+      document.getElementById('payment-message').textContent = '';
+      document.getElementById('confirm-section').style.display = 'none';
+      document.getElementById('message-section').style.display = 'block';
+    }
+    async function handlePay() {
+      const payBtn = document.getElementById('pay-btn');
+      const messageEl = document.getElementById('payment-message');
+      payBtn.disabled = true;
+      payBtn.textContent = '処理中...';
+      messageEl.textContent = '';
+      let error, paymentIntent;
+      try {
+        ({ error, paymentIntent } = await stripe.confirmPayment({ elements, redirect: 'if_required' }));
+      } catch {
+        messageEl.textContent = '通信エラーが発生しました。電波の良い場所で再度お試しください。';
+        payBtn.disabled = false;
+        payBtn.textContent = '支払う';
+        return;
+      }
+      if (error) {
+        const msg = error.type === 'card_error'
+          ? (error.message || 'カード情報を確認してもう一度お試しください。')
+          : 'お支払いに失敗しました。もう一度お試しください。';
+        messageEl.textContent = msg;
+        payBtn.disabled = false;
+        payBtn.textContent = '支払う';
+        return;
+      }
+      if (paymentIntent && paymentIntent.status === 'succeeded') {
+        document.getElementById('payment-section').style.display = 'none';
+        document.getElementById('complete-section').style.display = 'block';
+        const completeMsg = document.getElementById('complete-message');
+        const shareBtn = document.getElementById('share-btn');
+        const copyBtn = document.getElementById('copy-btn');
+        const giftUrl = `${location.origin}/gift/select.html?gift=${currentGiftId}`;
+        shareBtn.dataset.giftUrl = giftUrl;
+        shareBtn.disabled = false;
+        shareBtn.textContent = '友だちにギフトを送る';
+        shareBtn.onclick = shareGift;
+        copyBtn.style.display = 'block';
+        completeMsg.textContent = '贈りたい相手にギフトを送りましょう';
+      }
+    }
+    async function copyGiftUrl() {
+      const giftUrl = document.getElementById('share-btn').dataset.giftUrl;
+      const btn = document.getElementById('copy-btn');
+      try {
+        await navigator.clipboard.writeText(giftUrl);
+        btn.textContent = '✅ コピーしました！';
+        setTimeout(() => { btn.textContent = '🔗 URLをコピー'; }, 2000);
+      } catch {
+        alert('URL: ' + giftUrl);
+      }
+    }
+    async function shareGift() {
+      const giftUrl = document.getElementById('share-btn').dataset.giftUrl;
+      const message = `🎁 ギフトが送られました！\n以下のURLを開いて受け取ってください。\n\n${giftUrl}`;
+      try {
+        await liff.shareTargetPicker([{ type: 'text', text: message }]);
+      } catch (err) {
+        console.error('shareTargetPicker error:', err);
+        window.location.href = `https://line.me/R/msg/text/?${encodeURIComponent(message)}`;
+      }
+    }
+  </script>
+</body>
+</html>
