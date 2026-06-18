@@ -3,7 +3,7 @@ require('dotenv').config();
 const https = require('https');
 const zlib = require('zlib');
 const TOKEN = process.env.LINE_CHANNEL_ACCESS_TOKEN;
-const LIFF_URI = 'https://liff.line.me/2009924306-AGKLqoyb';
+const LIFF_URI = process.env.LIFF_URL || 'https://liff.line.me/2009924306-AGKLqoyb';
 if (!TOKEN) {
   console.error('LINE_CHANNEL_ACCESS_TOKEN が .env に設定されていません');
   process.exit(1);

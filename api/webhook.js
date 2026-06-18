@@ -69,7 +69,7 @@ app.post('*', async (req, res) => {
               type: 'box', layout: 'vertical', paddingAll: '8px',
               contents: [{
                 type: 'button', style: 'primary', color: '#00C300', height: 'sm',
-                action: { type: 'uri', label: 'もう一度贈る', uri: `https://liff.line.me/2009924306-AGKLqoyb?product=${p.product_id}` },
+                action: { type: 'uri', label: 'もう一度贈る', uri: `${process.env.LIFF_URL || 'https://liff.line.me/2009924306-AGKLqoyb'}?product=${p.product_id}` },
               }],
             },
           }));
@@ -91,8 +91,8 @@ app.post('*', async (req, res) => {
       const aiText = await callGemini(userId, userMessage, allProducts);
       const recIds = extractRecommendedIds(aiText, allProducts);
       const liffUri = recIds.length > 0
-        ? `https://liff.line.me/2009924306-AGKLqoyb?rec=${recIds.join(',')}`
-        : 'https://liff.line.me/2009924306-AGKLqoyb';
+        ? `${process.env.LIFF_URL || 'https://liff.line.me/2009924306-AGKLqoyb'}?rec=${recIds.join(',')}`
+        : process.env.LIFF_URL || 'https://liff.line.me/2009924306-AGKLqoyb';
       const messages = recIds.length > 0
         ? [{ type: 'text', text: aiText }, buildSelectFlex(liffUri)]
         : [{ type: 'text', text: aiText }];
