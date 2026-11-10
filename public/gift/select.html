@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="referrer" content="no-referrer">
+  <title>Giftalk ギフトを受け取る</title>
+  <style>
+    body { max-width: 540px; margin: 32px auto; padding: 0 18px; font-family: system-ui, sans-serif; color: #292929; line-height: 1.6; }
+    h1 { font-size: 1.4rem; }
+    fieldset { border: 1px solid #ddd; border-radius: 8px; margin: 18px 0; }
+    label.item { display: block; padding: 10px 4px; }
+    textarea { box-sizing: border-box; width: 100%; min-height: 110px; padding: 10px; font: inherit; }
+    button { padding: 12px 20px; border: 0; border-radius: 8px; background: #167a30; color: white; font: inherit; cursor: pointer; }
+    button:disabled { opacity: .5; cursor: default; }
+    #message { color: #a12626; }
+  </style>
+</head>
+<body>
+  <h1>Giftalk ギフトを受け取る</h1>
+  <p id="message">読み込み中です…</p>
+  <main id="content" hidden>
+    <p id="sender"></p>
+    <p id="occasion"></p>
+    <form id="receive-form">
+      <fieldset><legend>受け取りたい商品を1つ選んでください</legend><div id="items"></div></fieldset>
+      <label for="address">配送先（氏名・郵便番号・住所）</label>
+      <textarea id="address" required maxlength="500" autocomplete="street-address"></textarea>
+      <p><label><input id="confirm" type="checkbox" required> 私がこのギフトの受取人です。選択した商品と配送先を確認しました。</label></p>
+      <button id="submit" type="submit">この内容で受け取る</button>
+    </form>
+  </main>
+  <script>
+    const giftId = new URLSearchParams(location.search).get('gift');
+    const token = new URLSearchParams(location.hash.slice(1)).get('token');
+    const message = document.getElementById('message');
+    const headers = { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` };
+
+    async function loadGift() {
+      if (!giftId || !/^[a-f0-9]{64}$/.test(token || '')) throw new Error('受け取りURLが正しくありません。');
+      const response = await fetch(`/gift-data?id=${encodeURIComponent(giftId)}`, { headers });
+      const result = await response.json();
+      if (!response.ok || !result.ok) throw new Error('ギフトを確認できませんでした。');
+      const gift = result.gift;
+      if (gift.status === 'completed') {
+        message.textContent = 'このギフトは配送先の登録が完了しています。';
+        return;
+      }
+      if (!['paid', 'selected'].includes(gift.status)) throw new Error('このギフトは現在受け取れません。');
+      document.getElementById('sender').textContent = gift.sender_name ? `${gift.sender_name}さんからのギフトです。` : 'ギフトが届きました。';
+      document.getElementById('occasion').textContent = gift.occasion_text || '';
+      const list = document.getElementById('items');
+      for (const item of gift.items) {
+        const label = document.createElement('label');
+        label.className = 'item';
+        const radio = document.createElement('input');
+        radio.type = 'radio';
+        radio.name = 'item';
+        radio.value = String(item.id);
+        radio.required = true;
+        radio.checked = String(item.id) === String(gift.selected_item_id);
+        label.append(radio, document.createTextNode(` ${item.name || item.id}${item.description ? ` — ${item.description}` : ''}`));
+        list.append(label);
+      }
+      message.textContent = '';
+      document.getElementById('content').hidden = false;
+    }
+
+    document.getElementById('receive-form').addEventListener('submit', async event => {
+      event.preventDefault();
+      const button = document.getElementById('submit');
+      const selectedItemId = document.querySelector('input[name="item"]:checked')?.value;
+      const address = document.getElementById('address').value.trim();
+      if (!selectedItemId || !address || !document.getElementById('confirm').checked) return;
+      button.disabled = true;
+      try {
+        const selected = await fetch('/gift-select', { method: 'POST', headers, body: JSON.stringify({ giftId, selectedItemId, method: 'shipping' }) });
+        if (!selected.ok) throw new Error('商品の選択を保存できませんでした。');
+        const received = await fetch('/gift-address', { method: 'POST', headers, body: JSON.stringify({ giftId, address }) });
+        if (!received.ok) throw new Error('配送先を保存できませんでした。再度お試しください。');
+        document.getElementById('content').hidden = true;
+        message.style.color = '#167a30';
+        message.textContent = '受け取り内容を登録しました。';
+      } catch (error) {
+        message.textContent = error.message;
+        button.disabled = false;
+      }
+    });
+
+    loadGift().catch(error => { message.textContent = error.message; });
+  </script>
+</body>
+</html>
